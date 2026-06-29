@@ -72,7 +72,7 @@ wss.on('connection', (ws) => {
       case 'create_room': {
         if (currentRoom) return;
         const code = genCode();
-        const room = { code, players: [ws, null], board: null, scoreLimit: msg.scoreLimit || 3000 };
+        const room = { code, players: [ws, null], board: null, scoreLimit: msg.scoreLimit || 3000, timeLimit: msg.timeLimit || 0 };
         rooms.set(code, room);
         currentRoom = room;
         playerIndex = 0;
@@ -98,10 +98,10 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'joined', code: msg.code, yourIndex: 1 }));
 
         // Notify both players: game starts
-        const startMsg = { type: 'game_start', board: null, playerIndex: 0, scoreLimit: room.scoreLimit };
+        const startMsg = { type: 'game_start', board: null, playerIndex: 0, scoreLimit: room.scoreLimit, timeLimit: room.timeLimit };
         room.players[0].send(JSON.stringify(startMsg));
 
-        const startMsg2 = { type: 'game_start', board: null, playerIndex: 1, scoreLimit: room.scoreLimit };
+        const startMsg2 = { type: 'game_start', board: null, playerIndex: 1, scoreLimit: room.scoreLimit, timeLimit: room.timeLimit };
         room.players[1].send(JSON.stringify(startMsg2));
 
         console.log(`Room ${msg.code} joined, game started (real-time mode)`);

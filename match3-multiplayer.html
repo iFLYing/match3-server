@@ -225,6 +225,7 @@ canvas{
       <div class="vs-side"><div class="vs-name" id="vs-name-me">你</div><div class="vs-score" id="vs-score-me">0</div></div>
       <div class="vs-divider">⚔</div>
       <div class="vs-side"><div class="vs-name" id="vs-name-op">对手</div><div class="vs-score" id="vs-score-op">0</div></div>
+      <div id="timer-display" style="display:none;font-size:14px;color:#ffaa00;font-weight:bold;min-width:50px;text-align:center;"></div>
     </div>
     <div id="header">
       <div id="title" style="font-size:16px;">☕ 咖啡<span>老师</span> · 三消</div>
@@ -691,7 +692,10 @@ function applyGravity() {
     _chainTimeout = setTimeout(() => {
     _chainTimeout = null;
     const newMatches = getMatches();
-    if (newMatches.positions.length > 0) { processMatches(newMatches); }
+    if (newMatches.positions.length > 0) {
+      processMatches(newMatches);
+      if (gameMode === 'multi') sendMoveToServer(); // sync after each chain
+    }
       else {
         chainCombo = 0; animating = false;
         // Check game over
@@ -716,13 +720,14 @@ function applyGravity() {
 // ─── GAME OVER ─────────────────────────────────────────
 var gameOver = false;
 var gameWinner = false;
-var scoreLimit = 3000; // true = this player won
+var scoreLimit = 3000;
+var gameTimer = 0;
+var timerInterval = null;
 
 function checkGameOver() {
   if (gameOver) return;
-  // Score limit
-  if (score >= scoreLimit) { triggerGameOver(true); return; }
-  // Random sudden death (~4% chance per move)
+  if (score >= scoreLimit || opponentScore >= scoreLimit) { triggerGameOver(score >= scoreLimit); return; }
+  if (gameTimer <= 0 && gameStarted) { triggerGameOver(score > opponentScore); return; }
   if (Math.random() < 0.04) { triggerGameOver(score > opponentScore); }
 }
 
@@ -731,11 +736,34 @@ function triggerGameOver(won) {
   gameWinner = won;
   animating = false;
   selected = null;
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   // Send result to opponent
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'game_over', scores: [myIndex === 0 ? score : opponentScore, myIndex === 0 ? opponentScore : score] }));
   }
   render();
+}
+
+// ─── TIMER ─────────────────────────────────────────────
+function startTimer(seconds) {
+  if (timerInterval) clearInterval(timerInterval);
+  gameTimer = seconds;
+  var el = document.getElementById('timer-display');
+  if (!el) return;
+  el.style.display = seconds > 0 ? 'block' : 'none';
+  if (seconds <= 0) return;
+  timerInterval = setInterval(function() {
+    gameTimer--;
+    if (gameTimer <= 0) {
+      gameTimer = 0;
+      clearInterval(timerInterval); timerInterval = null;
+      checkGameOver();
+    }
+    var m = Math.floor(gameTimer / 60);
+    var s = gameTimer % 60;
+    el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+    if (gameOver) clearInterval(timerInterval);
+  }, 1000);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -934,13 +962,14 @@ function connectWebSocket(onReady) {
         opponentScore = 0;
         enterGame();
         updateVsBar();
+        startTimer(msg.timeLimit || 0);
         break;
 
       case 'score_update':
-        // Opponent sent their score
         opponentScore = msg.scores[1 - myIndex];
         multiScores = msg.scores;
         updateVsBar();
+        checkGameOver();
         break;
 
       case 'opponent_left':
@@ -1001,9 +1030,11 @@ function showRoomScreen(action) {
     $('room-title').textContent = '创建房间';
     content.innerHTML = `
       <p style="color:#aaa;margin-bottom:10px;">正在连接服务器...</p>
-      <div style="margin:15px 0;">
-        <label style="color:#aaa;font-size:13px;">比赛分数上限</label>
-        <input id="create-score-limit" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:6px 10px;border-radius:4px;font-family:'Courier New',monospace;font-size:18px;width:100px;text-align:center;margin-left:10px;" value="3000" min="500" max="99999">
+      <div style="margin:10px 0;">
+        <label style="color:#aaa;font-size:13px;">分数上限</label>
+        <input id="create-score-limit" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:6px 8px;border-radius:4px;font-family:'Courier New',monospace;font-size:16px;width:80px;text-align:center;margin-left:6px;" value="3000" min="500" max="99999">
+        <label style="color:#aaa;font-size:13px;margin-left:10px;">倒计时(秒)</label>
+        <input id="create-time-limit" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:6px 8px;border-radius:4px;font-family:'Courier New',monospace;font-size:16px;width:70px;text-align:center;margin-left:6px;" value="120" min="0" max="600">
       </div>
       <div id="display-code" style="display:none;font-size:40px;color:#00F0FF;font-weight:bold;letter-spacing:10px;margin:15px 0;"></div>
       <p style="color:#888;font-size:13px;display:none;" id="share-tip">将上面的房间号通过微信发送给好友</p>
@@ -1013,7 +1044,8 @@ function showRoomScreen(action) {
     document.getElementById('create-score-limit').value = defScore;
     connectWebSocket(function() {
       var limit = parseInt(document.getElementById('create-score-limit').value) || 3000;
-      ws.send(JSON.stringify({ type: 'create_room', board: null, scoreLimit: limit }));
+      var tlim = parseInt(document.getElementById('create-time-limit').value) || 0;
+      ws.send(JSON.stringify({ type: 'create_room', board: null, scoreLimit: limit, timeLimit: tlim }));
     });
   } else {
     $('room-title').textContent = '加入房间';
