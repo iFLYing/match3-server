@@ -376,7 +376,7 @@ function setTile(r, c, v) {
     console.error('!!! CORRUPTION ORIGIN !!! setTile(', r, c, ',', v, ')');
     console.trace();
     _corruptionDetected = true;
-    v = Math.floor(Math.random() * BLOCK_TYPES.length);
+    v = Math.floor(Math.random() * (BLOCK_TYPES.length - 1));
   }
   board[r][c] = v;
 }
