@@ -242,7 +242,7 @@ canvas{
       </div>
     </div>
     <div id="gameover-actions" style="display:none;text-align:center;margin-top:10px;">
-      <button class="mode-btn primary" onclick="showModeScreen()" style="font-size:16px;padding:10px 24px;">🔁 再来一局</button>
+      <button class="mode-btn primary" onclick="restartGame()" style="font-size:16px;padding:10px 24px;">🔁 再来一局</button>
       <button class="mode-btn" onclick="location.reload()" style="font-size:14px;padding:8px 20px;margin-left:10px;">🚪 退出</button>
     </div>
   </div>
@@ -611,7 +611,7 @@ function processMatches(matchResult) {
   chainCombo++;
   playMatchSound(maxStreak);
 
-  const baseScore = matches.length * 10;
+  var baseScore = maxStreak >= 5 ? 30 : (maxStreak === 4 ? 20 : 10);
   const comboMult = Math.min(chainCombo, 5);
   const addScore = baseScore * comboMult;
   score += addScore;
@@ -732,7 +732,6 @@ function checkGameOver() {
   if (gameOver) return;
   if (score >= scoreLimit || opponentScore >= scoreLimit) { triggerGameOver(score >= scoreLimit); return; }
   if (gameTimer <= 0 && gameStarted) { triggerGameOver(score > opponentScore); return; }
-  if (Math.random() < 0.04) { triggerGameOver(score > opponentScore); }
 }
 
 function triggerGameOver(won) {
@@ -747,6 +746,22 @@ function triggerGameOver(won) {
     ws.send(JSON.stringify({ type: 'game_over', scores: [myIndex === 0 ? score : opponentScore, myIndex === 0 ? opponentScore : score] }));
   }
   render();
+}
+
+function restartGame() {
+  cancelAllPending(); clearAnims();
+  gameOver = false; gameWinner = false;
+  chainCombo = 0; score = 0; opponentScore = 0;
+  multiScores = [0, 0];
+  selected = null; _flashState = null; _corruptionDetected = false;
+  document.getElementById('score').textContent = '0';
+  document.getElementById('combo-display').textContent = '';
+  document.getElementById('gameover-actions').style.display = 'none';
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  initBoard();
+  render();
+  if (gameMode === 'multi' && gameTimer > 0) startTimer(gameTimer);
+  fitScreen();
 }
 
 // ─── TIMER ─────────────────────────────────────────────
