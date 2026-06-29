@@ -199,7 +199,7 @@ canvas{
     </div>
     <div style="margin-bottom:25px;">
       <label style="color:#aaa;font-size:13px;display:block;margin-bottom:5px;">默认比赛分数上限</label>
-      <input id="set-default-score" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:8px 12px;border-radius:4px;font-family:'Courier New',monospace;font-size:16px;width:120px;text-align:center;" value="3000" min="500" max="99999">
+      <input id="set-default-score" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:8px 12px;border-radius:4px;font-family:'Courier New',monospace;font-size:16px;width:120px;text-align:center;" value="5000" min="500" max="99999">
     </div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
       <button class="mode-btn primary" onclick="saveSettings()" style="font-size:16px;padding:10px 30px;">✓ 保存</button>
@@ -240,6 +240,10 @@ canvas{
       <div id="info-right">
         <button id="btn-reset" style="display:none;">重新开始</button>
       </div>
+    </div>
+    <div id="gameover-actions" style="display:none;text-align:center;margin-top:10px;">
+      <button class="mode-btn primary" onclick="showModeScreen()" style="font-size:16px;padding:10px 24px;">🔁 再来一局</button>
+      <button class="mode-btn" onclick="location.reload()" style="font-size:14px;padding:8px 20px;margin-left:10px;">🚪 退出</button>
     </div>
   </div>
 </div>
@@ -720,7 +724,7 @@ function applyGravity() {
 // ─── GAME OVER ─────────────────────────────────────────
 var gameOver = false;
 var gameWinner = false;
-var scoreLimit = 3000;
+var scoreLimit = 5000;
 var gameTimer = 0;
 var timerInterval = null;
 
@@ -737,6 +741,7 @@ function triggerGameOver(won) {
   animating = false;
   selected = null;
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  document.getElementById('gameover-actions').style.display = 'block';
   // Send result to opponent
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'game_over', scores: [myIndex === 0 ? score : opponentScore, myIndex === 0 ? opponentScore : score] }));
@@ -832,14 +837,12 @@ function render() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = 'bold 40px "Courier New", monospace';
     ctx.fillStyle = gameWinner ? '#55ff55' : '#ff5555';
-    ctx.fillText(gameWinner ? 'YOU WIN! 🎉' : 'YOU LOSE', CANVAS_W/2, CANVAS_H/2 - 20);
+    ctx.fillText(gameWinner ? 'YOU WIN! 🎉' : 'YOU LOSE', CANVAS_W/2, CANVAS_H/2 - 10);
     ctx.font = '16px "Courier New", monospace';
     ctx.fillStyle = '#aaa';
-    ctx.fillText('你: ' + score + '  对手: ' + opponentScore, CANVAS_W/2, CANVAS_H/2 + 40);
-    ctx.font = '14px "Courier New", monospace';
-    ctx.fillStyle = '#888';
-    ctx.fillText('刷新页面重新开始', CANVAS_W/2, CANVAS_H/2 + 80);
+    ctx.fillText('你: ' + score + '  对手: ' + opponentScore, CANVAS_W/2, CANVAS_H/2 + 45);
   }
+  // ponytail: gameover-actions buttons shown/hidden outside render
 }
 
 function drawBackground() {
@@ -981,8 +984,9 @@ function connectWebSocket(onReady) {
       case 'game_result':
         if (!gameOver) {
           gameOver = true;
-          gameWinner = msg.winner !== myIndex; // opponent won? then we lose
+          gameWinner = msg.winner !== myIndex;
           if (msg.scores) { opponentScore = msg.scores[1 - myIndex]; score = msg.scores[myIndex]; }
+          document.getElementById('gameover-actions').style.display = 'block';
           render();
         }
         break;
@@ -1032,15 +1036,15 @@ function showRoomScreen(action) {
       <p style="color:#aaa;margin-bottom:10px;">正在连接服务器...</p>
       <div style="margin:10px 0;">
         <label style="color:#aaa;font-size:13px;">分数上限</label>
-        <input id="create-score-limit" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:6px 8px;border-radius:4px;font-family:'Courier New',monospace;font-size:16px;width:80px;text-align:center;margin-left:6px;" value="3000" min="500" max="99999">
+        <input id="create-score-limit" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:6px 8px;border-radius:4px;font-family:'Courier New',monospace;font-size:16px;width:80px;text-align:center;margin-left:6px;" value="5000" min="500" max="99999">
         <label style="color:#aaa;font-size:13px;margin-left:10px;">倒计时(秒)</label>
-        <input id="create-time-limit" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:6px 8px;border-radius:4px;font-family:'Courier New',monospace;font-size:16px;width:70px;text-align:center;margin-left:6px;" value="120" min="0" max="600">
+        <input id="create-time-limit" type="number" style="background:#3d3d3d;border:2px solid #5d5d5d;color:#fff;padding:6px 8px;border-radius:4px;font-family:'Courier New',monospace;font-size:16px;width:70px;text-align:center;margin-left:6px;" value="300" min="0" max="600">
       </div>
       <div id="display-code" style="display:none;font-size:40px;color:#00F0FF;font-weight:bold;letter-spacing:10px;margin:15px 0;"></div>
       <p style="color:#888;font-size:13px;display:none;" id="share-tip">将上面的房间号通过微信发送给好友</p>
     `;
     // Use default score limit from settings if available
-    var defScore = parseInt(localStorage.getItem('match3_defaultScore') || '3000');
+    var defScore = parseInt(localStorage.getItem('match3_defaultScore') || '5000');
     document.getElementById('create-score-limit').value = defScore;
     connectWebSocket(function() {
       var limit = parseInt(document.getElementById('create-score-limit').value) || 3000;
@@ -1088,6 +1092,7 @@ function enterGame() {
   $('mode-screen').style.display = 'none';
   $('room-screen').style.display = 'none';
   $('game-screen').style.display = 'block';
+  document.getElementById('gameover-actions').style.display = 'none';
   document.getElementById('score').textContent = score;
 
   if (gameMode === 'multi') {
@@ -1159,7 +1164,7 @@ function resetToDefault() {
   localStorage.removeItem('match3_watermark');
   localStorage.removeItem('match3_defaultScore');
   $('set-game-name').value = '';
-  $('set-default-score').value = '3000';
+  $('set-default-score').value = '5000';
   applySettings();
   // Show brief confirmation
   var btn = event && event.target;
