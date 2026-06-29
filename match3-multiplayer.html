@@ -389,7 +389,7 @@ function initBoard() {
     board[r] = [];
     for (let c = 0; c < COLS; c++) {
       let type;
-      do { type = Math.floor(Math.random() * BLOCK_TYPES.length); } while (wouldMatch(r, c, type));
+      do { type = Math.floor(Math.random() * (BLOCK_TYPES.length - 1)); } while (wouldMatch(r, c, type));
       setTile(r, c, type);
     }
   }
@@ -689,7 +689,7 @@ function applyGravity() {
         writeRow--;
       }
     }
-    for (let r = writeRow; r >= 0; r--) { setTile(r, c, Math.floor(Math.random() * BLOCK_TYPES.length)); moved = true; }
+    for (let r = writeRow; r >= 0; r--) { board[r][c] = Math.floor(Math.random() * (BLOCK_TYPES.length - 1)); moved = true; }
   }
   render();
   if (moved) {
